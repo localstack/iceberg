@@ -1,0 +1,47 @@
+name: Build Patched Iceberg Hive Runtime
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version for the JAR (e.g. 1.6.2)'
+        required: true
+        default: '1.6.2'
+      base_tag:
+        description: 'Base Iceberg tag to build from (e.g. apache-iceberg-1.6.1)'
+        required: true
+        default: 'apache-iceberg-1.6.1'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 8
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '8'
+
+      - name: Set version
+        run: echo "${{ github.event.inputs.version }}" > version.txt
+
+      - name: Build shadow JAR
+        run: ./gradlew clean :iceberg-hive-runtime:shadowJar -x test -x integrationTest
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: Iceberg Hive Runtime ${{ github.event.inputs.version }}
+          body: |
+            Patched `iceberg-hive-runtime` built from `${{ github.event.inputs.base_tag }}` with:
+            - HiveClientPool: configurable metastore client via `iceberg.hive.client.class` (for Glue catalog)
+            - Built with Hive 3 profile + Java 8
+          files: hive-runtime/build/libs/iceberg-hive-runtime-${{ github.event.inputs.version }}.jar
+          make_latest: true
