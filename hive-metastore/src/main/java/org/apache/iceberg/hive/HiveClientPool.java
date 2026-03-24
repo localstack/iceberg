@@ -60,8 +60,20 @@ public class HiveClientPool extends ClientPoolImpl<IMetaStoreClient, TException>
   protected IMetaStoreClient newClient() {
     try {
       try {
+        String clientClassname = hiveConf.get("iceberg.hive.client.class");
+        if (clientClassname != null) {
+          try {
+            return (IMetaStoreClient) Class.forName(clientClassname)
+              .getDeclaredConstructor(Configuration.class, HiveMetaHookLoader.class)
+              .newInstance((Configuration) hiveConf, (HiveMetaHookLoader) tbl -> null);
+          } catch (Exception e) {
+            throw new RuntimeException("Failed to create Hive Metastore client: " + clientClassname, e);
+          }
+        }
         return GET_CLIENT.invoke(
-            hiveConf, (HiveMetaHookLoader) tbl -> null, HiveMetaStoreClient.class.getName());
+            hiveConf,
+            (HiveMetaHookLoader) tbl -> null,
+            HiveMetaStoreClient.class.getName());
       } catch (RuntimeException e) {
         // any MetaException would be wrapped into RuntimeException during reflection, so let's
         // double-check type here
